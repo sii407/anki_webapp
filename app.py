@@ -35,7 +35,7 @@ if "user" not in st.session_state or st.session_state.user is None:
 # --------------------------------------------------
 # 2. ユーザー認証機能 (ログイン / 新規登録)
 # --------------------------------------------------
-st.sidebar.header(" ユーザー認証")
+st.sidebar.header("ユーザー認証")
 
 if st.session_state.user is None:
   auth_mode = st.sidebar.radio("モード選択", ["ログイン", "新規アカウント登録"])
@@ -187,7 +187,7 @@ if uploaded_files:
 
         deck_name = file.name.rsplit('.', 1)[0]
         save_csv_to_supabase(deck_name, df, user_id)
-        st.sidebar.success(f" {file.name} を保存しました！")
+        st.sidebar.success(f"{file.name} を保存しました！")
       else:
         st.sidebar.error(f"{file.name}: 2列以上のデータが必要です。")
     except Exception as e:
@@ -217,17 +217,8 @@ def is_playable(row):
     return False
   return True
 
-playable_df = current_df[current_df.apply(
-    is_playable, axis=1)] if not current_df.empty else pd.DataFrame()
-
-if "current_word_id" not in st.session_state:
-  st.session_state.current_word_id = None
-if "show_meaning" not in st.session_state:
-  st.session_state.show_meaning = False
-
-def pick_next_word():
-  p_df = current_df[current_df.apply(
-      is_playable, axis=1)] if not current_df.empty else pd.DataFrame()
+def pick_next_word(df):
+  p_df = df[df.apply(is_playable, axis=1)] if not df.empty else pd.DataFrame()
   if p_df.empty:
     st.session_state.current_word_id = None
   else:
@@ -240,9 +231,17 @@ def pick_next_word():
       st.session_state.current_word_id = random.choice(valid_ids)
   st.session_state.show_meaning = False
 
+playable_df = current_df[current_df.apply(
+    is_playable, axis=1)] if not current_df.empty else pd.DataFrame()
+
+if "current_word_id" not in st.session_state:
+  st.session_state.current_word_id = None
+if "show_meaning" not in st.session_state:
+  st.session_state.show_meaning = False
+
 if (st.session_state.current_word_id is None or
         (not playable_df.empty and st.session_state.current_word_id not in playable_df["id"].values)):
-  pick_next_word()
+  pick_next_word(current_df)
 
 # --------------------------------------------------
 # 6. メイン画面表示
@@ -304,19 +303,28 @@ else:
     if st.button("正解 ( Rank +1 )", type="primary", use_container_width=True):
       new_rank = min(10, curr_rank + 1)
       up_d = today_str if new_rank >= 7 else None
+      # 1. DBを更新
       update_word_progress(curr_id, new_rank, up_d)
-      pick_next_word()
+      # 2. 最新の単語リストを再取得
+      updated_df = load_words(selected_deck_name, user_id)
+      # 3. 最新リストを元に次の単語を選定
+      pick_next_word(updated_df)
       st.rerun()
 
   with btn_col2:
     if st.button("不正解( Rank -1 )", use_container_width=True):
       new_rank = max(1, curr_rank - 1)
+      # 1. DBを更新
       update_word_progress(curr_id, new_rank)
-      pick_next_word()
+      # 2. 最新の単語リストを再取得
+      updated_df = load_words(selected_deck_name, user_id)
+      # 3. 最新リストを元に次の単語を選定
+      pick_next_word(updated_df)
       st.rerun()
 
 st.sidebar.divider()
 if st.sidebar.button("このデッキの進行状況をリセット"):
   reset_deck_progress(selected_deck_name, user_id)
-  pick_next_word()
+  updated_df = load_words(selected_deck_name, user_id)
+  pick_next_word(updated_df)
   st.rerun()
