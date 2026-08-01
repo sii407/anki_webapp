@@ -16,7 +16,7 @@ def get_supabase_client() -> Client:
     key = st.secrets["SUPABASE_KEY"].strip()
     return create_client(url, key)
   except Exception as e:
-    st.error(f"⚠️ Supabaseの接続設定(Secrets)エラー: {e}")
+    st.error(f"Supabaseの接続設定(Secrets)エラー: {e}")
     st.stop()
 
 supabase = get_supabase_client()
@@ -35,7 +35,7 @@ if "user" not in st.session_state or st.session_state.user is None:
 # --------------------------------------------------
 # 2. ユーザー認証機能 (ログイン / 新規登録)
 # --------------------------------------------------
-st.sidebar.header("👤 ユーザー認証")
+st.sidebar.header(" ユーザー認証")
 
 if st.session_state.user is None:
   auth_mode = st.sidebar.radio("モード選択", ["ログイン", "新規アカウント登録"])
@@ -52,11 +52,11 @@ if st.session_state.user is None:
               {"email": email, "password": password})
           if login_res.user:
             st.session_state.user = login_res.user
-            st.sidebar.success("🎉 アカウントを作成し、ログインしました！")
+            st.sidebar.success("アカウントを作成し、ログインしました！")
             st.rerun()
           elif res.user:
             st.session_state.user = res.user
-            st.sidebar.success("🎉 アカウントを作成しました！")
+            st.sidebar.success("アカウントを作成しました！")
             st.rerun()
         except Exception as e:
           try:
@@ -64,10 +64,10 @@ if st.session_state.user is None:
                 {"email": email, "password": password})
             if login_res.user:
               st.session_state.user = login_res.user
-              st.sidebar.success("🔑 ログインしました！")
+              st.sidebar.success("ログインしました！")
               st.rerun()
           except Exception as le:
-            st.sidebar.error(f"⚠️ エラー: {e}")
+            st.sidebar.error(f"エラー: {e}")
       else:
         st.sidebar.warning("メールアドレスとパスワードを入力してください。")
 
@@ -79,20 +79,20 @@ if st.session_state.user is None:
               {"email": email, "password": password})
           if res.user:
             st.session_state.user = res.user
-            st.sidebar.success("🔑 ログインしました！")
+            st.sidebar.success("ログインしました！")
             st.rerun()
         except Exception as e:
-          st.sidebar.error(f"⚠️ ログインエラー: {e}")
+          st.sidebar.error(f"ログインエラー: {e}")
       else:
         st.sidebar.warning("メールアドレスとパスワードを入力してください。")
 
-  st.info("👈 アプリを利用するには、サイドバーから **ログイン** または **新規アカウント登録** を行ってください。")
+  st.info("アプリを利用するには、サイドバーから **ログイン** または **新規アカウント登録** を行ってください。")
   st.stop()
 
 else:
   user_email = st.session_state.user.email
   user_id = st.session_state.user.id
-  st.sidebar.write(f"👤 ログイン中: **{user_email}**")
+  st.sidebar.write(f"ログイン中: **{user_email}**")
   if st.sidebar.button("ログアウト", use_container_width=True):
     try:
       supabase.auth.sign_out()
@@ -124,7 +124,7 @@ def save_csv_to_supabase(deck_name, df, current_user_id):
     if data_to_insert:
       supabase.table("words").insert(data_to_insert).execute()
   except Exception as e:
-    st.error(f"⚠️ データ保存エラー: {e}")
+    st.error(f"データ保存エラー: {e}")
 
 def load_decks(current_user_id):
   try:
@@ -137,7 +137,7 @@ def load_decks(current_user_id):
     decks.sort()
     return decks
   except Exception as e:
-    st.error(f"⚠️ デッキ取得エラー: {e}")
+    st.error(f"デッキ取得エラー: {e}")
     return []
 
 def load_words(deck_name, current_user_id):
@@ -146,7 +146,7 @@ def load_words(deck_name, current_user_id):
         "*").eq("user_id", current_user_id).eq("deck_name", deck_name).execute()
     return pd.DataFrame(res.data) if res.data else pd.DataFrame()
   except Exception as e:
-    st.error(f"⚠️ 単語読み込みエラー: {e}")
+    st.error(f"単語読み込みエラー: {e}")
     return pd.DataFrame()
 
 def update_word_progress(word_id, new_rank, up_date=None):
@@ -156,19 +156,19 @@ def update_word_progress(word_id, new_rank, up_date=None):
       update_data["last_up_date"] = up_date
     supabase.table("words").update(update_data).eq("id", word_id).execute()
   except Exception as e:
-    st.error(f"⚠️ 進捗更新エラー: {e}")
+    st.error(f"進捗更新エラー: {e}")
 
 def reset_deck_progress(deck_name, current_user_id):
   try:
     supabase.table("words").update({"rank": 1, "last_up_date": None}).eq(
         "user_id", current_user_id).eq("deck_name", deck_name).execute()
   except Exception as e:
-    st.error(f"⚠️ リセットエラー: {e}")
+    st.error(f"リセットエラー: {e}")
 
 # --------------------------------------------------
 # 4. サイドバー・デッキ管理 & CSVアップロード
 # --------------------------------------------------
-st.sidebar.header("📁 デッキ管理")
+st.sidebar.header("デッキ管理")
 
 uploaded_files = st.sidebar.file_uploader(
     "CSVファイルをアップロード（複数可）",
@@ -187,20 +187,20 @@ if uploaded_files:
 
         deck_name = file.name.rsplit('.', 1)[0]
         save_csv_to_supabase(deck_name, df, user_id)
-        st.sidebar.success(f"💾 {file.name} を保存しました！")
+        st.sidebar.success(f" {file.name} を保存しました！")
       else:
-        st.sidebar.error(f"⚠️ {file.name}: 2列以上のデータが必要です。")
+        st.sidebar.error(f"{file.name}: 2列以上のデータが必要です。")
     except Exception as e:
-      st.sidebar.error(f"⚠️ {file.name} 保存失敗: {e}")
+      st.sidebar.error(f"{file.name} 保存失敗: {e}")
 
 existing_decks = load_decks(user_id)
 
 # 登録データがない場合の案内表示
 if not existing_decks:
-  st.info("👈 単語データがありません。画面左のサイドバーから **CSVファイルをアップロード** してください。")
+  st.info("単語データがありません。画面左のサイドバーから **CSVファイルをアップロード** してください。")
   st.stop()
 
-selected_deck_name = st.sidebar.selectbox("📚 学習するデッキを選択", existing_decks)
+selected_deck_name = st.sidebar.selectbox("学習するデッキを選択", existing_decks)
 current_df = load_words(selected_deck_name, user_id)
 
 # --------------------------------------------------
@@ -258,11 +258,11 @@ st.caption(f"完全マスター (Rank 10): **{mastered_count} / {total_count} �
 
 if mastered_count == total_count and total_count > 0:
   st.balloons()
-  st.success("🎉 おめでとうございます！すべての単語が MAX (Rank 10) に達しました！")
-  st.info("このデッキは完全にマスターされました！")
+  st.success("🎉 すべての単語が MAX (Rank 10) に達しました！")
+  st.info("このデッキはマスターされました！")
 
 elif playable_df.empty:
-  st.info("🌙 **本日の学習は完了しました！**")
+  st.info("**本日の学習は完了しました！**")
   st.write("Rank 7以上の単語は、記憶の定着のため1日1回しかランクアップできません。")
   st.write("明日になると再び復習できるようになります。お疲れ様でした！")
 
@@ -293,25 +293,15 @@ else:
     else:
       st.markdown("*？？？？（「答えを見る」ボタンを押してください）*")
 
-  col1, col2 = st.columns(2)
-  with col1:
-    def toggle_meaning():
-      st.session_state.show_meaning = not st.session_state.show_meaning
+  def toggle_meaning():
+    st.session_state.show_meaning = not st.session_state.show_meaning
 
-    st.button("👀 答えを見る / 隠す", use_container_width=True,
-              on_click=toggle_meaning)
+  st.button("答えを見る", use_container_width=True, on_click=toggle_meaning)
 
-  with col2:
-    if st.button("➡️ 評価せず別の単語へ", use_container_width=True):
-      pick_next_word()
-      st.rerun()
-
-  st.write("---")
-  st.write(f"**判定してランクを変更:** {limit_notice}")
   btn_col1, btn_col2 = st.columns(2)
 
   with btn_col1:
-    if st.button("⭕ 正解！ ( Rank +1 )", type="primary", use_container_width=True):
+    if st.button("正解 ( Rank +1 )", type="primary", use_container_width=True):
       new_rank = min(10, curr_rank + 1)
       up_d = today_str if new_rank >= 7 else None
       update_word_progress(curr_id, new_rank, up_d)
@@ -319,14 +309,14 @@ else:
       st.rerun()
 
   with btn_col2:
-    if st.button("❌ 不正解... ( Rank -1 )", use_container_width=True):
+    if st.button("不正解( Rank -1 )", use_container_width=True):
       new_rank = max(1, curr_rank - 1)
       update_word_progress(curr_id, new_rank)
       pick_next_word()
       st.rerun()
 
 st.sidebar.divider()
-if st.sidebar.button("🔄 このデッキの進行状況をリセット"):
+if st.sidebar.button("このデッキの進行状況をリセット"):
   reset_deck_progress(selected_deck_name, user_id)
   pick_next_word()
   st.rerun()
