@@ -44,18 +44,24 @@ selected_deck_name = st.sidebar.selectbox("📚 学習するデッキを選択",
 current_df = decks[selected_deck_name]
 
 # --------------------------------------------------
-# 2. セッション状態（ランク・最終ランクアップ日）の初期化
+# 2. セッション状態（ステート）の初期化・安全化処理
 # --------------------------------------------------
 today_str = str(date.today())
 
-# デッキ切り替え時の初期化
+# デッキが切り替わったかチェック
 if "current_deck_name" not in st.session_state or st.session_state.current_deck_name != selected_deck_name:
   st.session_state.current_deck_name = selected_deck_name
-  # 各単語のランク（初期値 1）
   st.session_state.word_ranks = {i: 1 for i in range(len(current_df))}
-  # 最後にランクアップした日付（初期値 None）
   st.session_state.last_up_dates = {i: None for i in range(len(current_df))}
   st.session_state.current_word_idx = None
+  st.session_state.show_meaning = False
+
+# 必要な変数が未存在の場合の安全な初期化（エラー保護）
+if "word_ranks" not in st.session_state:
+  st.session_state.word_ranks = {i: 1 for i in range(len(current_df))}
+if "last_up_dates" not in st.session_state:
+  st.session_state.last_up_dates = {i: None for i in range(len(current_df))}
+if "show_meaning" not in st.session_state:
   st.session_state.show_meaning = False
 
 # --------------------------------------------------
@@ -63,8 +69,12 @@ if "current_deck_name" not in st.session_state or st.session_state.current_deck_
 # --------------------------------------------------
 def is_playable(idx):
   """今日学習（出題）できる単語かどうかを判定"""
-  rank = st.session_state.word_ranks[idx]
-  last_date = st.session_state.last_up_dates[idx]
+  # 範囲外アクセス保護
+  if idx not in st.session_state.word_ranks:
+    return False
+
+  rank = st.session_state.word_ranks.get(idx, 1)
+  last_date = st.session_state.last_up_dates.get(idx, None)
 
   # すでに MAX (Rank 10) の場合は除外
   if rank >= 10:
@@ -85,7 +95,7 @@ def pick_next_word():
   if not valid_indices:
     st.session_state.current_word_idx = None
   else:
-    curr = st.session_state.current_word_idx
+    curr = st.session_state.get("current_word_idx", None)
     if len(valid_indices) > 1 and curr in valid_indices:
       candidates = [i for i in valid_indices if i != curr]
       st.session_state.current_word_idx = random.choice(candidates)
@@ -94,7 +104,7 @@ def pick_next_word():
   st.session_state.show_meaning = False
 
 # 初期選択
-if st.session_state.current_word_idx is None or st.session_state.current_word_idx not in playable_indices:
+if st.session_state.get("current_word_idx") is None or st.session_state.current_word_idx not in playable_indices:
   pick_next_word()
 
 # --------------------------------------------------
