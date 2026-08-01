@@ -118,7 +118,7 @@ def save_csv_to_supabase(deck_name, df, current_user_id):
           "deck_name": deck_name,
           "question": str(row[0]),
           "answer": str(row[1]),
-          "rank": 1,
+          "rank": 1,  # Pythonの標準int型で保存
           "last_up_date": None
       })
     if data_to_insert:
@@ -151,7 +151,8 @@ def load_words(deck_name, current_user_id):
 
 def update_word_progress(word_id, new_rank, up_date=None):
   try:
-    update_data = {"rank": new_rank}
+    # NumPy/Pandasのint64型エラーを防ぐため int() で標準の整数型にキャスト
+    update_data = {"rank": int(new_rank)}
     if up_date is not None:
       update_data["last_up_date"] = up_date
     supabase.table("words").update(update_data).eq("id", word_id).execute()
@@ -209,7 +210,7 @@ current_df = load_words(selected_deck_name, user_id)
 today_str = str(date.today())
 
 def is_playable(row):
-  rank = row.get("rank", 1)
+  rank = int(row.get("rank", 1))
   last_date = row.get("last_up_date", None)
   if rank >= 10:
     return False
@@ -271,7 +272,7 @@ else:
   curr_id = curr_row["id"]
   curr_word = curr_row["question"]
   curr_meaning = curr_row["answer"]
-  curr_rank = curr_row["rank"]
+  curr_rank = int(curr_row["rank"])
 
   limit_notice = ""
   if curr_rank >= 6:
@@ -303,22 +304,16 @@ else:
     if st.button("正解 ( Rank +1 )", type="primary", use_container_width=True):
       new_rank = min(10, curr_rank + 1)
       up_d = today_str if new_rank >= 7 else None
-      # 1. DBを更新
       update_word_progress(curr_id, new_rank, up_d)
-      # 2. 最新の単語リストを再取得
       updated_df = load_words(selected_deck_name, user_id)
-      # 3. 最新リストを元に次の単語を選定
       pick_next_word(updated_df)
       st.rerun()
 
   with btn_col2:
     if st.button("不正解( Rank -1 )", use_container_width=True):
       new_rank = max(1, curr_rank - 1)
-      # 1. DBを更新
       update_word_progress(curr_id, new_rank)
-      # 2. 最新の単語リストを再取得
       updated_df = load_words(selected_deck_name, user_id)
-      # 3. 最新リストを元に次の単語を選定
       pick_next_word(updated_df)
       st.rerun()
 
