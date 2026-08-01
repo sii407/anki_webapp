@@ -5,7 +5,6 @@ from datetime import date
 from supabase import create_client, Client
 
 st.set_page_config(page_title="単語カードアプリ", page_icon="🎴", layout="centered")
-st.title("🎴 単語カードアプリ")
 
 # --------------------------------------------------
 # 1. Supabase 接続初期化
@@ -171,19 +170,6 @@ def reset_deck_progress(deck_name, current_user_id):
 # --------------------------------------------------
 st.sidebar.header("📁 デッキ管理")
 
-existing_decks = load_decks(user_id)
-
-if not existing_decks:
-  sample_df = pd.DataFrame([
-      ["apple", "りんご"],
-      ["banana", "バナナ"],
-      ["challenge", "挑戦"],
-      ["develop", "開発する"],
-      ["effort", "努力"]
-  ])
-  save_csv_to_supabase("サンプル英単語", sample_df, user_id)
-  existing_decks = load_decks(user_id)
-
 uploaded_files = st.sidebar.file_uploader(
     "CSVファイルをアップロード（複数可）",
     type=["csv"],
@@ -207,10 +193,11 @@ if uploaded_files:
     except Exception as e:
       st.sidebar.error(f"⚠️ {file.name} 保存失敗: {e}")
 
-  existing_decks = load_decks(user_id)
+existing_decks = load_decks(user_id)
 
+# 登録データがない場合の案内表示
 if not existing_decks:
-  st.warning("表示できるデッキがありません。CSVファイルをアップロードしてください。")
+  st.info("👈 単語データがありません。画面左のサイドバーから **CSVファイルをアップロード** してください。")
   st.stop()
 
 selected_deck_name = st.sidebar.selectbox("📚 学習するデッキを選択", existing_decks)
