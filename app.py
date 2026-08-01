@@ -7,7 +7,7 @@ st.set_page_config(page_title="単語カードアプリ", page_icon="🎴", layo
 st.title("🎴 単語カードアプリ")
 
 # --------------------------------------------------
-# 1. デッキ（CSV）の管理
+# 1. デッキ（CSV）の管理（列位置による自動判別）
 # --------------------------------------------------
 st.sidebar.header("📁 デッキ管理")
 
@@ -17,23 +17,37 @@ uploaded_files = st.sidebar.file_uploader(
     accept_multiple_files=True
 )
 
+# デフォルト（サンプル）デッキの準備（列名ではなく0, 1の列インデックスで管理）
+default_data = pd.DataFrame([
+    ["apple", "りんご"],
+    ["banana", "バナナ"],
+    ["challenge", "挑戦"],
+    ["develop", "開発する"],
+    ["effort", "努力"]
+])
+
 default_decks = {
-    "サンプル英単語": pd.DataFrame({
-        "word": ["apple", "banana", "challenge", "develop", "effort"],
-        "meaning": ["りんご", "バナナ", "挑戦", "開発する", "努力"]
-    })
+    "サンプル英単語": default_data
 }
 
 decks = {}
 if uploaded_files:
   for file in uploaded_files:
     try:
-      df = pd.read_csv(file)
-      if "word" in df.columns and "meaning" in df.columns:
+      # header=None で読み込み、1列目(0)と2列目(1)を自動認識
+      df = pd.read_csv(file, header=None)
+
+      # 最低2列以上あるかチェック
+      if df.shape[1] >= 2:
+        # 1行目が「word」「単語」などのヘッダーっぽい場合は自動除去
+        first_row_str = str(df.iloc[0, 0]).lower()
+        if first_row_str in ["word", "単語", "問題", "question", "front"]:
+          df = df.iloc[1:].reset_index(drop=True)
+
         deck_name = file.name.rsplit('.', 1)[0]
         decks[deck_name] = df
       else:
-        st.sidebar.error(f"⚠️ {file.name}: 'word' と 'meaning' 列が必要です。")
+        st.sidebar.error(f"⚠️ {file.name}: 2列以上のデータが必要です。")
     except Exception as e:
       st.sidebar.error(f"⚠️ {file.name} 読み込み失敗: {e}")
 
@@ -48,7 +62,7 @@ current_df = decks[selected_deck_name]
 # --------------------------------------------------
 today_str = str(date.today())
 
-# デッキが切り替わったかチェック
+# デッキ切り替え時の初期化
 if "current_deck_name" not in st.session_state or st.session_state.current_deck_name != selected_deck_name:
   st.session_state.current_deck_name = selected_deck_name
   st.session_state.word_ranks = {i: 1 for i in range(len(current_df))}
@@ -56,7 +70,7 @@ if "current_deck_name" not in st.session_state or st.session_state.current_deck_
   st.session_state.current_word_idx = None
   st.session_state.show_meaning = False
 
-# 必要な変数が未存在の場合の安全な初期化（エラー保護）
+# 安全保護
 if "word_ranks" not in st.session_state:
   st.session_state.word_ranks = {i: 1 for i in range(len(current_df))}
 if "last_up_dates" not in st.session_state:
@@ -69,7 +83,6 @@ if "show_meaning" not in st.session_state:
 # --------------------------------------------------
 def is_playable(idx):
   """今日学習（出題）できる単語かどうかを判定"""
-  # 範囲外アクセス保護
   if idx not in st.session_state.word_ranks:
     return False
 
@@ -121,27 +134,25 @@ st.caption(f"完全マスター (Rank 10): **{mastered_count} / {total_count} �
 # --------------------------------------------------
 # 5. メイン画面（判定分岐）
 # --------------------------------------------------
-# ケース1: デッキ内のすべての単語が Rank 10 になった場合
 if mastered_count == total_count:
   st.balloons()
   st.success("🎉 おめでとうございます！すべての単語が MAX (Rank 10) に達しました！")
   st.info("このデッキは完全にマスターされました！")
 
-# ケース2: すべてが Rank 10 ではないが、今日の制限で出題できる単語がない場合
 elif len(playable_indices) == 0:
   st.info("🌙 **本日の学習は完了しました！**")
   st.write("Rank 7以上の単語は、記憶の定着のため1日1回しかランクアップできません。")
   st.write("明日になると再び復習できるようになります。お疲れ様でした！")
 
-# ケース3: 通常の単語カード画面
 else:
   curr_idx = st.session_state.current_word_idx
   curr_rank = st.session_state.word_ranks[curr_idx]
 
-  current_word = current_df.iloc[curr_idx]["word"]
-  current_meaning = current_df.iloc[curr_idx]["meaning"]
+  # 【自動判定】1列目(0)を問題、2列目(1)を答えとして取得
+  current_word = current_df.iloc[curr_idx, 0]
+  current_meaning = current_df.iloc[curr_idx, 1]
 
-  # 制限に関する注記メッセージ
+  # 制限注記
   limit_notice = ""
   if curr_rank >= 6:
     limit_notice = " *(正解するとRank 7以上になり、本日の出題は終了します)*"
@@ -149,7 +160,7 @@ else:
   with st.container(border=True):
     col_t1, col_t2 = st.columns([3, 2])
     with col_t1:
-      st.caption("【表面】単語")
+      st.caption("【1列目】問題")
     with col_t2:
       st.markdown(f"**現在の評価:** `Rank {curr_rank} / 10`")
 
@@ -157,16 +168,16 @@ else:
 
     st.divider()
 
-    st.caption("【裏面】意味")
+    st.caption("【2列目】答え")
     if st.session_state.show_meaning:
       st.markdown(f"### {current_meaning}")
     else:
-      st.markdown("*？？？？（「意味を見る」ボタンを押してください）*")
+      st.markdown("*？？？？（「答えを見る」ボタンを押してください）*")
 
   # 操作ボタン
   col1, col2 = st.columns(2)
   with col1:
-    if st.button("👀 意味を見る / 隠す", use_container_width=True):
+    if st.button("👀 答えを見る / 隠す", use_container_width=True):
       st.session_state.show_meaning = not st.session_state.show_meaning
       st.rerun()
 
@@ -181,11 +192,9 @@ else:
 
   with btn_col1:
     if st.button("⭕ 正解！ ( Rank +1 )", type="primary", use_container_width=True):
-      # ランクアップ処理
       new_rank = min(10, curr_rank + 1)
       st.session_state.word_ranks[curr_idx] = new_rank
 
-      # Rank 7 以上へ上がった（または保持した）場合、本日の日付を記録
       if new_rank >= 7:
         st.session_state.last_up_dates[curr_idx] = today_str
 
@@ -194,7 +203,6 @@ else:
 
   with btn_col2:
     if st.button("❌ 不正解... ( Rank -1 )", use_container_width=True):
-      # ランクダウン処理（最低 1）
       st.session_state.word_ranks[curr_idx] = max(1, curr_rank - 1)
       pick_next_word()
       st.rerun()
