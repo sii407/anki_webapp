@@ -12,7 +12,7 @@ uploaded_file = st.sidebar.file_uploader(
     "CSVファイルをアップロード（列名: word, meaning）", type=["csv"])
 
 # 状態管理（セッション状態の初期化）
-if "word_index" not in st.state_state if "word_index" not in st.session_state:
+if "word_index" not in st.session_state:
   st.session_state.word_index = 0
 if "show_meaning" not in st.session_state:
   st.session_state.show_meaning = False
