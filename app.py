@@ -22,18 +22,79 @@ def get_supabase_client() -> Client:
 
 supabase = get_supabase_client()
 
+# セッション状態の初期化
+if "user" not in st.session_state:
+  st.session_state.user = None
+
 # --------------------------------------------------
-# 2. データベース操作関数（Supabase）
+# 2. ユーザー認証機能 (ログイン / 新規登録)
 # --------------------------------------------------
-def save_csv_to_supabase(deck_name, df):
-  """CSVデータをSupabaseに保存（全置き換え）"""
+st.sidebar.header("👤 ユーザー認証")
+
+if st.session_state.user is None:
+  auth_mode = st.sidebar.radio("モード選択", ["ログイン", "新規アカウント登録"])
+  email = st.sidebar.text_input("メールアドレス")
+  password = st.sidebar.text_input("パスワード", type="password")
+
+  if auth_mode == "新規アカウント登録":
+    if st.sidebar.button("アカウント作成", type="primary", use_container_width=True):
+      if email and password:
+        try:
+          res = supabase.auth.sign_up(
+              {"email": email, "password": password})
+          if res.user:
+            st.session_state.user = res.user
+            st.sidebar.success("🎉 アカウントを作成し、ログインしました！")
+            st.rerun()
+        except Exception as e:
+          st.sidebar.error(f"⚠️ 登録エラー: {e}")
+      else:
+        st.sidebar.warning("メールアドレスとパスワードを入力してください。")
+
+  else:  # ログイン
+    if st.sidebar.button("ログイン", type="primary", use_container_width=True):
+      if email and password:
+        try:
+          res = supabase.auth.sign_in_with_password(
+              {"email": email, "password": password})
+          if res.user:
+            st.session_state.user = res.user
+            st.sidebar.success("🔑 ログインしました！")
+            st.rerun()
+        except Exception as e:
+          st.sidebar.error(f"⚠️ ログインエラー: {e}")
+      else:
+        st.sidebar.warning("メールアドレスとパスワードを入力してください。")
+
+  st.info("👈 アプリを利用するには、サイドバーから **ログイン** または **新規アカウント登録** を行ってください。")
+  st.stop()
+
+else:
+  user_email = st.session_state.user.email
+  user_id = st.session_state.user.id
+  st.sidebar.write(f"👤 ログイン中: **{user_email}**")
+  if st.sidebar.button("ログアウト", use_container_width=True):
+    supabase.auth.sign_out()
+    st.session_state.user = None
+    st.session_state.current_word_id = None
+    st.rerun()
+
+st.sidebar.divider()
+
+# --------------------------------------------------
+# 3. データベース操作関数（ユーザーIDフィルター付き）
+# --------------------------------------------------
+def save_csv_to_supabase(deck_name, df, current_user_id):
+  """CSVデータをユーザーID紐付けで保存"""
   try:
-    # 同名デッキの削除
-    supabase.table("words").delete().eq("deck_name", deck_name).execute()
+    # 同一ユーザーかつ同名デッキの既存単語を削除して置換
+    supabase.table("words").delete().eq("user_id", current_user_id).eq(
+        "deck_name", deck_name).execute()
 
     data_to_insert = []
     for _, row in df.iterrows():
       data_to_insert.append({
+          "user_id": current_user_id,
           "deck_name": deck_name,
           "question": str(row[0]),
           "answer": str(row[1]),
@@ -45,10 +106,11 @@ def save_csv_to_supabase(deck_name, df):
   except Exception as e:
     st.error(f"⚠️ データ保存エラー: {e}")
 
-def load_decks():
-  """登録されているデッキ一覧を取得"""
+def load_decks(current_user_id):
+  """ログイン中ユーザーのデッキ一覧を取得"""
   try:
-    res = supabase.table("words").select("deck_name").execute()
+    res = supabase.table("words").select("deck_name").eq(
+        "user_id", current_user_id).execute()
     if not res.data:
       return []
     decks = list(set([item["deck_name"]
@@ -59,11 +121,11 @@ def load_decks():
     st.error(f"⚠️ デッキ取得エラー: {e}")
     return []
 
-def load_words(deck_name):
+def load_words(deck_name, current_user_id):
   """選択されたデッキの単語データを取得"""
   try:
     res = supabase.table("words").select(
-        "*").eq("deck_name", deck_name).execute()
+        "*").eq("user_id", current_user_id).eq("deck_name", deck_name).execute()
     return pd.DataFrame(res.data) if res.data else pd.DataFrame()
   except Exception as e:
     st.error(f"⚠️ 単語読み込みエラー: {e}")
@@ -79,20 +141,22 @@ def update_word_progress(word_id, new_rank, up_date=None):
   except Exception as e:
     st.error(f"⚠️ 進捗更新エラー: {e}")
 
-def reset_deck_progress(deck_name):
+def reset_deck_progress(deck_name, current_user_id):
   """特定のデッキの進行状況をリセット"""
   try:
     supabase.table("words").update({"rank": 1, "last_up_date": None}).eq(
-        "deck_name", deck_name).execute()
+        "user_id", current_user_id).eq("deck_name", deck_name).execute()
   except Exception as e:
     st.error(f"⚠️ リセットエラー: {e}")
 
 # --------------------------------------------------
-# 3. デッキ取得とサンプルデータ初期化
+# 4. サイドバー・デッキ管理 & CSVアップロード
 # --------------------------------------------------
-existing_decks = load_decks()
+st.sidebar.header("📁 デッキ管理")
 
-# データベースに何もない場合、初期サンプルを投入
+existing_decks = load_decks(user_id)
+
+# 初めてのユーザー用：サンプルデータの投入
 if not existing_decks:
   sample_df = pd.DataFrame([
       ["apple", "りんご"],
@@ -101,13 +165,8 @@ if not existing_decks:
       ["develop", "開発する"],
       ["effort", "努力"]
   ])
-  save_csv_to_supabase("サンプル英単語", sample_df)
-  existing_decks = load_decks()
-
-# --------------------------------------------------
-# 4. サイドバー・デッキ選択
-# --------------------------------------------------
-st.sidebar.header("📁 デッキ管理")
+  save_csv_to_supabase("サンプル英単語", sample_df, user_id)
+  existing_decks = load_decks(user_id)
 
 uploaded_files = st.sidebar.file_uploader(
     "CSVファイルをアップロード（複数可）",
@@ -125,21 +184,21 @@ if uploaded_files:
           df = df.iloc[1:].reset_index(drop=True)
 
         deck_name = file.name.rsplit('.', 1)[0]
-        save_csv_to_supabase(deck_name, df)
-        st.sidebar.success(f"💾 {file.name} をクラウドに保存しました！")
+        save_csv_to_supabase(deck_name, df, user_id)
+        st.sidebar.success(f"💾 {file.name} を保存しました！")
       else:
         st.sidebar.error(f"⚠️ {file.name}: 2列以上のデータが必要です。")
     except Exception as e:
       st.sidebar.error(f"⚠️ {file.name} 保存失敗: {e}")
 
-  existing_decks = load_decks()
+  existing_decks = load_decks(user_id)
 
 if not existing_decks:
   st.warning("表示できるデッキがありません。CSVファイルをアップロードしてください。")
   st.stop()
 
 selected_deck_name = st.sidebar.selectbox("📚 学習するデッキを選択", existing_decks)
-current_df = load_words(selected_deck_name)
+current_df = load_words(selected_deck_name, user_id)
 
 # --------------------------------------------------
 # 5. 出題ロジック
@@ -183,7 +242,7 @@ if (st.session_state.current_word_id is None or
   pick_next_word()
 
 # --------------------------------------------------
-# 6. メイン画面
+# 6. メイン画面表示
 # --------------------------------------------------
 total_count = len(current_df)
 mastered_count = len(current_df[current_df["rank"] == 10]) if (
@@ -263,6 +322,6 @@ else:
 
 st.sidebar.divider()
 if st.sidebar.button("🔄 このデッキの進行状況をリセット"):
-  reset_deck_progress(selected_deck_name)
+  reset_deck_progress(selected_deck_name, user_id)
   pick_next_word()
   st.rerun()
